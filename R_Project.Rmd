@@ -1,0 +1,166 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+Spotify top 50 in 2021
+
+Data Set Info
+-track: The Name of the track.
+
+-artist: The Name of the Artist.
+
+-danceability: Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity. A value of 0.0 is least danceable and 1.0 is most danceable. 
+
+- energy: Energy is a measure from 0.0 to 1.0 and represents a perceptual measure of intensity and activity. Typically, energetic tracks feel fast, loud, and noisy. For example, death metal has high energy, while a Bach prelude scores low on the scale. Perceptual features contributing to this attribute include dynamic range, perceived loudness, timbre, onset rate, and general entropy. 
+
+- key: The estimated overall key of the track. Integers map to pitches using standard Pitch Class notation. E.g. 0 = C, 1 = C?/D?, 2 = D, and so on. If no key was detected, the value is -1.
+
+- loudness: The overall loudness of a track in decibels (dB). Loudness values are averaged across the entire track and are useful for comparing relative loudness of tracks. Loudness is the quality of a sound that is the primary psychological correlate of physical strength (amplitude). Values typical range between -60 and 0 db. 
+
+- mode: Mode indicates the modality (major or minor) of a track, the type of scale from which its melodic content is derived. Major is represented by 1 and minor is 0.
+
+- speechiness: Speechiness detects the presence of spoken words in a track. The more exclusively speech-like the recording (e.g. talk show, audio book, poetry), the closer to 1.0 the attribute value. Values above 0.66 describe tracks that are probably made entirely of spoken words. Values between 0.33 and 0.66 describe tracks that may contain both music and speech, either in sections or layered, including such cases as rap music. Values below 0.33 most likely represent music and other non-speech-like tracks. 
+
+- acousticness: A confidence measure from 0.0 to 1.0 of whether the track is acoustic. 1.0 represents high confidence the track is acoustic. 
+
+- instrumentalness: Predicts whether a track contains no vocals. “Ooh” and “aah” sounds are treated as instrumental in this context. Rap or spoken word tracks are clearly “vocal”. The closer the instrumentalness value is to 1.0, the greater likelihood the track contains no vocal content. Values above 0.5 are intended to represent instrumental tracks, but confidence is higher as the value approaches 1.0. 
+
+- liveness: Detects the presence of an audience in the recording. Higher liveness values represent an increased probability that the track was performed live. A value above 0.8 provides strong likelihood that the track is live.
+
+- valence: A measure from 0.0 to 1.0 describing the musical positiveness conveyed by a track. Tracks with high valence sound more positive (e.g. happy, cheerful, euphoric), while tracks with low valence sound more negative (e.g. sad, depressed, angry).
+
+- tempo: The overall estimated tempo of a track in beats per minute (BPM). In musical terminology, tempo is the speed or pace of a given piece and derives directly from the average beat duration. 
+
+- duration_ms:  The duration of the track in milliseconds.
+
+- time_signature: An estimated overall time signature of a track. The time signature (meter) is a notational convention to specify how many beats are in each bar (or measure).
+
+```{r}
+#plot(cars)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+```
+```{r}
+spotify_df = readr::read_csv("spotify_top50_2021.csv")
+
+```
+```{r}
+spotify_df = spotify_df %>% mutate(duration_m = duration_ms/1000/60)
+spotify_df = spotify_df %>% arrange(desc(popularity))
+spotify_df
+spotify = spotify_df %>% select(c(popularity, danceability, energy,key,loudness,mode,speechiness,acousticness,instrumentalness,liveness,valence,tempo,duration_m,time_signature))
+plot(spotify)
+summary(spotify_df)
+```
+
+```{r}
+library(ggcorrplot)
+cor = cor(spotify)
+cor
+ggcorrplot(cor, hc.order =TRUE,
+           outline.color ="blue")
+```
+```{r}
+library(purrr)
+
+g=spotify %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram(fill="deepskyblue4", col=I("black"))
+
+g
+```
+```{r}
+model = lm(popularity ~ ., data = spotify)
+summary(model)
+```
+```{r}
+#spotify %>% group_by(mode,key)
+mode_1 = spotify[spotify$mode > 0, ]
+mode_0 = spotify[spotify$mode == 0, ]
+mode_1
+mode_0
+ggplot(mode_1, aes(x = key, y = popularity, fill=key, width = 0.5)) +geom_bar(stat = "identity")+ggtitle("Popularity based on mode and key") + labs(y= "Count", x = "Major")
+ggplot(mode_0, aes(x = key, y = popularity, fill = key,width = 0.5)) +geom_bar(stat = "identity")+ggtitle("Popularity based on mode and key")+ labs(y= "Count", x = "Minor")
+```
+```{r}
+df1= spotify %>% select(popularity,valence, energy, loudness, danceability, acousticness)
+df1
+
+```
+```{r}
+library(reshape2)
+df = spotify_df %>% count(artist_name, sort = TRUE) 
+df %>% ggplot(aes(x=reorder(artist_name, n), y=n)) +
+  geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
+  coord_flip() +
+  xlab("Artists") +
+  theme_bw() + ggtitle("Top 50 hits artists")
+```
+```{r}
+library(ggExtra)
+library(hrbrthemes)
+library(viridisLite)
+df2 = df1 %>% select(popularity,danceability,energy,valence)
+df2=melt(df2, id.vars = 'popularity')
+ggplot(df2, aes(x=value, y=popularity, color = variable))+geom_point()+ ggtitle("Popularity based on danceability/energy/valence")
+
+p1 = ggplot(df2, aes(value, popularity, color = variable)) + geom_point(alpha=0.8)
+ggMarginal(p1, type = "histogram", fill = "darkslategray4", color = 'darkslategray')
+
+#p2 <- ggplot(data=df2, aes(x=value, group=variable, fill=variable)) +
+    #geom_density(adjust=1.5, alpha=.4) +
+    #theme_ipsum()
+
+df3 = spotify %>% select(popularity,acousticness,liveness,instrumentalness,speechiness)
+df3=melt(df3, id.vars = 'popularity') 
+ggplot(df3, aes(x=value, y=popularity, color = variable))+geom_point()+ ggtitle("Popularity based on danceability/energy/valence")
+
+p2 = ggplot(df3, aes(value, popularity, color = variable)) + geom_point(alpha=0.8)
+ggMarginal(p2, type = "histogram", fill = "darkslateblue", color = 'black')
+
+#ggplot(df3, aes(x = value, y = popularity, color = variable)) + geom_line()
+
+#gg <- ggplot(df3)
+#gg <- gg + geom_bar(aes(x =value , y = popularity, fill = variable), stat = "identity")
+#gg <- gg + scale_x_continuous(breaks=c(1:10))
+#gg <- gg + facet_wrap(~variable)
+#print(gg)
+#df4 = spotify %>% select(popularity,acousticness,liveness)
+#ggplot(df3, aes(x=value, y=popularity, group=variable, color=variable)) + geom_line()
+
+p = ggplot(spotify, aes(loudness, popularity)) + geom_point(alpha=1)
+ggMarginal(p, type = "histogram", fill = "darkslategray3", color = 'darkslategray4')
+
+```
+
+
+
+```{r}
+summary(spotify$duration_m)
+summary(spotify$tempo)
+summary(spotify$time_signature)
+```
+
+
+
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
